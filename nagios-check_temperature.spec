@@ -4,13 +4,13 @@
 Summary:	A Nagios wrapper script around digitemp
 Name:		nagios-check_temperature
 Version:	1.1
-Release:	%mkrel 1
+Release:	%mkrel 2
 License:	BSD-like
 Group:		Networking/Other
 URL:		http://www.hoppie.nl/tempsens/
-Source0:	http://www.hoppie.nl/tempsens/check_temperature.bz2
-Source1:	checkcommands.cfg.bz2
-Source2:	services.cfg.bz2
+Source0:	http://www.hoppie.nl/tempsens/check_temperature
+Source1:	check_temperature.cfg
+Source2:	services.cfg
 Requires:	digitemp
 Requires:	nagios
 BuildRoot:	%{_tmppath}/%{name}-buildroot
@@ -24,12 +24,13 @@ reports a temperature outside a predefined band.
 
 %setup -q -T -c
 
-bzcat %{SOURCE0} > check_temperature
-bzcat %{SOURCE1} > checkcommands.cfg
-bzcat %{SOURCE2} > services.cfg
+cp %{SOURCE0} check_temperature
+cp %{SOURCE1} check_temperature.cfg
+cp %{SOURCE2} services.cfg
 
 # lib64 fix
 perl -pi -e "s|/usr/lib\b|%{_libdir}|g" *
+perl -pi -e "s|_LIBDIR_|%{_libdir}|g" *.cfg
 
 %build
 
@@ -93,6 +94,7 @@ EOF
 %install
 [ -n "%{buildroot}" -a "%{buildroot}" != / ] && rm -rf %{buildroot}
 
+install -d %{buildroot}%{_sysconfdir}/nagios/plugins.d
 install -d %{buildroot}%{_sysconfdir}/cron.d
 install -d %{buildroot}%{_sysconfdir}/logrotate.d
 install -d %{buildroot}%{_libdir}/nagios/plugins
@@ -103,17 +105,23 @@ install -m0755 check_temperature %{buildroot}%{_libdir}/nagios/plugins/
 install -m0755 get_temperature %{buildroot}%{_bindir}/
 install -m0644 %{name}.crond %{buildroot}%{_sysconfdir}/cron.d/%{name}
 install -m0644 %{name}.logrotate %{buildroot}%{_sysconfdir}/logrotate.d/%{name}
+install -m0644 check_temperature.cfg %{buildroot}%{_sysconfdir}/nagios/plugins.d/
+
+%post
+/sbin/service nagios condrestart > /dev/null 2>/dev/null || :
+
+%postun
+/sbin/service nagios condrestart > /dev/null 2>/dev/null || :
 
 %clean
 [ -n "%{buildroot}" -a "%{buildroot}" != / ] && rm -rf %{buildroot}
 
 %files
 %defattr(-,root,root)
-%doc checkcommands.cfg services.cfg
+%doc services.cfg
+%attr(0644,root,root) %config(noreplace) %{_sysconfdir}/nagios/plugins.d/check_temperature.cfg
 %attr(0644,root,root) %config(noreplace) %{_sysconfdir}/cron.d/%{name}
 %attr(0644,root,root) %config(noreplace) %{_sysconfdir}/logrotate.d/%{name}
 %attr(0755,root,root) %{_libdir}/nagios/plugins/check_temperature
 %attr(0755,root,root) %{_bindir}/get_temperature
 %dir %attr(0755,root,root) %{_localstatedir}/temperature
-
-
