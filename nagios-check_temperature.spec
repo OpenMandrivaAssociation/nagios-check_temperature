@@ -13,7 +13,6 @@ Source1:	check_temperature.cfg
 Source2:	services.cfg
 Requires:	digitemp
 Requires:	nagios
-BuildRoot:	%{_tmppath}/%{name}-buildroot
 
 %description
 check_temperature: Nagios wrapper script around digitemp. Used to monitor a
