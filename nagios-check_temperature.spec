@@ -41,7 +41,7 @@ cat > get_temperature << EOF
 # temperatures in a state file. Called by cron every 5 minutes.
 
 TMPFILE="/tmp/temperature.XXXXXX"
-STATEFILE="%{_localstatedir}/temperature/current"
+STATEFILE="%{_localstatedir}/lib/temperature/current"
 DIGITEMP="%{_bindir}/digitemp"
 DIGICONF="%{_sysconfdir}/digitemp.conf"
 
@@ -80,7 +80,7 @@ cat > %{name}.crond << EOF
 */5 * * * * root %{_bindir}/get_temperature
 
 # Append the last poll to the history file after each whole hour.
-4 * * * * root cat %{_localstatedir}/temperature/current >> /var/log/temperature.log
+4 * * * * root cat %{_localstatedir}/lib/temperature/current >> /var/log/temperature.log
 EOF
 
 cat > %{name}.logrotate << EOF
@@ -99,7 +99,7 @@ install -d %{buildroot}%{_sysconfdir}/cron.d
 install -d %{buildroot}%{_sysconfdir}/logrotate.d
 install -d %{buildroot}%{_libdir}/nagios/plugins
 install -d %{buildroot}%{_bindir}
-install -d %{buildroot}%{_localstatedir}/temperature
+install -d %{buildroot}%{_localstatedir}/lib/temperature
 
 install -m0755 check_temperature %{buildroot}%{_libdir}/nagios/plugins/
 install -m0755 get_temperature %{buildroot}%{_bindir}/
@@ -124,4 +124,4 @@ install -m0644 check_temperature.cfg %{buildroot}%{_sysconfdir}/nagios/plugins.d
 %attr(0644,root,root) %config(noreplace) %{_sysconfdir}/logrotate.d/%{name}
 %attr(0755,root,root) %{_libdir}/nagios/plugins/check_temperature
 %attr(0755,root,root) %{_bindir}/get_temperature
-%dir %attr(0755,root,root) %{_localstatedir}/temperature
+%dir %attr(0755,root,root) %{_localstatedir}/lib/temperature
