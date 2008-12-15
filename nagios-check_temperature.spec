@@ -4,16 +4,15 @@
 Summary:	A Nagios wrapper script around digitemp
 Name:		nagios-check_temperature
 Version:	1.1
-Release:	%mkrel 4
+Release:	%mkrel 5
 License:	BSD-like
 Group:		Networking/Other
 URL:		http://www.hoppie.nl/tempsens/
 Source0:	http://www.hoppie.nl/tempsens/check_temperature
-Source1:	check_temperature.cfg
-Source2:	services.cfg
 Requires:	digitemp
-Requires:	nagios
-BuildRoot:	%{_tmppath}/%{name}-buildroot
+Requires:	nagios-plugins
+BuildArch:  noarch
+BuildRoot:	%{_tmppath}/%{name}-%{version}
 
 %description
 check_temperature: Nagios wrapper script around digitemp. Used to monitor a
@@ -21,20 +20,15 @@ couple of 1-wire temperature sensors and to raise an alarm when one of them
 reports a temperature outside a predefined band.
 
 %prep
-
 %setup -q -T -c
-
-cp %{SOURCE0} check_temperature
-cp %{SOURCE1} check_temperature.cfg
-cp %{SOURCE2} services.cfg
-
-# lib64 fix
-perl -pi -e "s|/usr/lib\b|%{_libdir}|g" *
-perl -pi -e "s|_LIBDIR_|%{_libdir}|g" *.cfg
 
 %build
 
-cat > get_temperature << EOF
+%install
+rm -rf %{buildroot}
+
+install -d -m 755 %{buildroot}%{_bindir}
+cat > %{buildroot}%{_bindir}/get_temperature << 'EOF'
 #!/bin/bash
 #
 # get_temperature: polls the temperature sensor array and leaves the
@@ -74,8 +68,21 @@ chmod 644 \$tmp
 # 'Atomically' move the freshly created state file in place.
 mv \$tmp \$STATEFILE
 EOF
+chmod +x %{buildroot}%{_bindir}/get_temperature
 
-cat > %{name}.crond << EOF
+install -d -m 755 %{buildroot}%{_datadir}/nagios/plugins
+install -m 755 %{SOURCE0} %{buildroot}%{_datadir}/nagios/plugins
+
+install -d -m 755 %{buildroot}%{_sysconfdir}/nagios/plugins.d
+cat > %{buildroot}%{_sysconfdir}/nagios/plugins.d/check_temperature.cfg <<'EOF'
+define command {
+        command_name	check_temperature
+        command_line	%{_datadir}/nagios/plugins/check_temperature -s $ARG1$ -t $ARG2$ -w $ARG3$ -c $ARG4$
+}
+EOF
+
+install -d -m 755 %{buildroot}%{_sysconfdir}/cron.d
+cat > %{buildroot}%{_sysconfdir}/cron.d/%{name} <<'EOF'
 # Poll the temperature sensor array every five minutes.
 */5 * * * * root %{_bindir}/get_temperature
 
@@ -83,7 +90,8 @@ cat > %{name}.crond << EOF
 4 * * * * root cat %{_localstatedir}/lib/temperature/current >> /var/log/temperature.log
 EOF
 
-cat > %{name}.logrotate << EOF
+install -d -m 755 %{buildroot}%{_sysconfdir}/logrotate.d
+cat > %{buildroot}%{_sysconfdir}/logrotate.d/%{name} <<'EOF'
 /var/log/temperature.log {
     missingok
     monthly
@@ -91,37 +99,24 @@ cat > %{name}.logrotate << EOF
 }
 EOF
 
-%install
-[ -n "%{buildroot}" -a "%{buildroot}" != / ] && rm -rf %{buildroot}
+install -d -m 755 %{buildroot}%{_localstatedir}/lib/temperature
 
-install -d %{buildroot}%{_sysconfdir}/nagios/plugins.d
-install -d %{buildroot}%{_sysconfdir}/cron.d
-install -d %{buildroot}%{_sysconfdir}/logrotate.d
-install -d %{buildroot}%{_libdir}/nagios/plugins
-install -d %{buildroot}%{_bindir}
-install -d %{buildroot}%{_localstatedir}/lib/temperature
-
-install -m0755 check_temperature %{buildroot}%{_libdir}/nagios/plugins/
-install -m0755 get_temperature %{buildroot}%{_bindir}/
-install -m0644 %{name}.crond %{buildroot}%{_sysconfdir}/cron.d/%{name}
-install -m0644 %{name}.logrotate %{buildroot}%{_sysconfdir}/logrotate.d/%{name}
-install -m0644 check_temperature.cfg %{buildroot}%{_sysconfdir}/nagios/plugins.d/
-
+%if %mdkversion < 200900
 %post
 /sbin/service nagios condrestart > /dev/null 2>/dev/null || :
 
 %postun
 /sbin/service nagios condrestart > /dev/null 2>/dev/null || :
+%endif
 
 %clean
-[ -n "%{buildroot}" -a "%{buildroot}" != / ] && rm -rf %{buildroot}
+rm -rf %{buildroot}
 
 %files
 %defattr(-,root,root)
-%doc services.cfg
-%attr(0644,root,root) %config(noreplace) %{_sysconfdir}/nagios/plugins.d/check_temperature.cfg
-%attr(0644,root,root) %config(noreplace) %{_sysconfdir}/cron.d/%{name}
-%attr(0644,root,root) %config(noreplace) %{_sysconfdir}/logrotate.d/%{name}
-%attr(0755,root,root) %{_libdir}/nagios/plugins/check_temperature
-%attr(0755,root,root) %{_bindir}/get_temperature
-%dir %attr(0755,root,root) %{_localstatedir}/lib/temperature
+%config(noreplace) %{_sysconfdir}/nagios/plugins.d/check_temperature.cfg
+%config(noreplace) %{_sysconfdir}/cron.d/%{name}
+%config(noreplace) %{_sysconfdir}/logrotate.d/%{name}
+%{_datadir}/nagios/plugins/check_temperature
+%{_bindir}/get_temperature
+%{_localstatedir}/lib/temperature
