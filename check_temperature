@@ -1,0 +1,203 @@
+#!/usr/bin/perl -w
+# check_temperature: Nagios wrapper script around digitemp.
+# Used to monitor a couple of 1-wire temperature sensors and to raise an
+# alarm when one of them reports a temperature outside a predefined band.
+# For more information: http://www.hoppie.nl/tempsens .
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to
+# deal in the Software without restriction, including without limitation the
+# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+# sell copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+# IN THE SOFTWARE.
+#
+# Howto Install in Nagios (tested with v1.3)
+#
+# 0. Make sure that Digitemp works and temperatures are written to the file:
+#    /var/lib/temperature/current
+#    as described at http://www.hoppie.nl/tempsens/ .
+#
+# 1. Copy this Perl script to /usr/local/nagios/libexec/ or wherever you have
+#    placed your Nagios plugins.
+#
+# 2. Add a command to /usr/local/nagios/etc/checkcommands.cfg like this:
+#
+#    # DigiTemp temperature check command
+#    define command {
+#      command_name check_temperature
+#      command_line /usr/local/nagios/libexec/check_temperature \
+#                   -s $ARG1$ -t $ARG2$ -w $ARG3$ -c $ARG4$
+#      (fold the above into one line)
+#    }
+#
+# 3. Tell Nagios to monitor the temperature by adding a service line like
+#    this to your service.cfg file:
+#
+#    # DigiTemp Temperature check Service definition
+#    define service {
+#        use                             generic-service
+#        host_name                       kermit
+#        service_description             Temperature
+#        is_volatile                     0
+#        check_period                    24x7
+#        max_check_attempts              3
+#        normal_check_interval           5
+#        retry_check_interval            2
+#        contact_groups                  home-admins
+#        notification_interval           240
+#        notification_period             24x7
+#        notification_options            w,u,c,r
+#        check_command                   check_temperature!1!25!3!5
+#    }
+#
+#    In this example,
+#      1 is the sensor # (as reported by digitemp -a) to monitor
+#     25 is the target (ideal) temperature
+#      3 is the warning temperature deviation from the target
+#      5 is the critical temperature deviation from the target
+
+# ===========================================================================
+
+# Modules to use.
+use strict;
+use Getopt::Std;
+
+# Define all our variables.
+use vars qw($temperature_state
+            $opt_s $opt_t $opt_w $opt_c
+            $sensor $target $warn_dev $crit_dev
+	    $temperature
+            %exit_codes);
+
+# Place to look for the temperature state file (may be customised here).
+$temperature_state = '/var/lib/temperature/current';
+
+# Predefined exit codes for Nagios.
+%exit_codes   = ('UNKNOWN' ,-1,
+                 'OK'      , 0,
+                 'WARNING' , 1,
+                 'CRITICAL', 2,);
+
+# Get the options
+if ($#ARGV le 0)
+{
+  &usage;
+} else {
+  getopts('s:t:w:c:');
+}
+
+# Shortcircuit the switches
+if (!$opt_w or $opt_w == 0 or !$opt_c or $opt_c == 0)
+{
+  print "*** You must define WARNING and CRITICAL deviation bands!\n";
+  &usage;
+}
+
+# Check if levels are sane
+if ($opt_w >= $opt_c)
+{
+  print "*** WARNING deviation band must not be greater than CRITICAL!\n";
+  &usage;
+}
+
+# Default sensor to read is #0
+if(!$opt_s)
+{
+  $sensor = 0;
+} else {
+  $sensor = $opt_s;
+}
+
+# Default target temperature is 20 (degrees Centigrade).
+if(!$opt_t)
+{
+  $target = 20;
+} else {
+  $target = $opt_t;
+}
+
+$warn_dev = $opt_w;
+$crit_dev = $opt_c;
+
+# Read the output from digitemp, as plain temperature Centigrade.
+# In order to avoid race conditions, a separate cron job usually placed in
+# /usr/local/bin/get_temperature polls digitemp and leaves the most recent
+# poll list in /var/lib/temperature/current . We just need to fetch the
+# correct line out of this file to get the digitemp output.
+
+# Does the file exist and is it readable?
+if (!-r $temperature_state) {
+  print "Could not read file $temperature_state; aborting.\n";
+  exit $exit_codes{'UNKNOWN'};
+}
+
+open( DIGITEMP, $temperature_state );
+$temperature = -9999;
+while( <DIGITEMP> )
+{
+  chomp;
+  # Select only the correct line.
+  if( $_ =~ /Sensor $sensor/i )
+  {
+    # Extract the temperature in Centigrade.
+    /Sensor [0-9] C: ([0-9.]+)/;
+    $temperature = $1;
+    last;
+  }
+}
+close( DIGITEMP );
+
+# Was the requested sensor temperature available in the state file?
+if( $temperature==-9999 )
+{
+  # No!
+  print "No data found for sensor #$sensor\n";
+  exit $exit_codes{'UNKNOWN'};
+}
+
+# Now for the real checks.
+if( $temperature and abs($target-$temperature) >= $crit_dev )
+{
+  print "Temperature CRITICAL - Sensor #$sensor = $temperature C\n";
+  exit $exit_codes{'CRITICAL'};
+} elsif ($temperature and abs($target-$temperature) >= $warn_dev ) {
+  print "Temperature WARNING - Sensor #$sensor = $temperature C\n";
+  exit $exit_codes{'WARNING'};
+} elsif( $temperature ) {
+  print "Temperature OK - Sensor #$sensor = $temperature C\n";
+  exit $exit_codes{'OK'};
+} else {
+  print "Error parsing result for sensor #$sensor\n";
+  exit $exit_codes{'UNKNOWN'};  
+}
+
+# Show usage
+sub usage()
+{
+  print "check_temperature v1.1 - Nagios Plugin\n";
+  print "Copyright 2006 Jeroen Hoppenbrouwers <hoppie\@hoppie.nl>\n";
+  print "More info: http://www.hoppie.nl/tempsens/\n";
+  print "See source for License and Nagios config example.\n\n";
+  print "Usage:\n";
+  print " check_temperature -s <sensor> -t <target> -w <warn> -c <crit>\n\n";
+  print "Options:\n";
+  print " -s n             DigiTemp Sensor #, default 0\n";
+  print " -t temperature   Target temperature in Centigrade, default 20\n";
+  print " -w deviation     Temperature deviation from target to warn (required)\n";
+  print " -c deviation     Temperature deviation from target when critical (required)\n\n";
+  print "Output:\n";
+  print " UNKNOWN/-1, OK/0, WARNING/1, CRITICAL/2\n";
+
+  exit $exit_codes{'UNKNOWN'}; 
+}

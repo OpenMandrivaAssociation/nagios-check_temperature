@@ -120,3 +120,46 @@ rm -rf %{buildroot}
 %{_datadir}/nagios/plugins/check_temperature
 %{_bindir}/get_temperature
 %{_localstatedir}/lib/temperature
+
+
+%changelog
+* Sat Dec 11 2010 Oden Eriksson <oeriksson@mandriva.com> 1.1-7mdv2011.0
++ Revision: 620467
+- the mass rebuild of 2010.0 packages
+
+* Mon Sep 14 2009 Thierry Vignaud <tv@mandriva.org> 1.1-6mdv2010.0
++ Revision: 440229
+- rebuild
+
+* Mon Dec 15 2008 Guillaume Rousse <guillomovitch@mandriva.org> 1.1-5mdv2009.1
++ Revision: 314683
+- now a noarch package
+- use a herein document for configuration
+- reply on filetrigger for reloading nagios
+
+* Tue Jul 29 2008 Thierry Vignaud <tv@mandriva.org> 1.1-4mdv2009.0
++ Revision: 253541
+- rebuild
+
+  + Pixel <pixel@mandriva.com>
+    - adapt to %%_localstatedir now being /var instead of /var/lib (#22312)
+
+* Fri Dec 21 2007 Olivier Blin <oblin@mandriva.com> 1.1-2mdv2008.1
++ Revision: 136618
+- restore BuildRoot
+
+  + Thierry Vignaud <tv@mandriva.org>
+    - kill re-definition of %%buildroot on Pixel's request
+
+* Tue Apr 17 2007 Oden Eriksson <oeriksson@mandriva.com> 1.1-2mdv2008.0
++ Revision: 13797
+- use the new /etc/nagios/plugins.d scandir
+
+
+* Wed Nov 15 2006 Oden Eriksson <oeriksson@mandriva.com> 1.1-1mdv2007.0
++ Revision: 84579
+- Import nagios-check_temperature
+
+* Sun Sep 17 2006 Oden Eriksson <oeriksson@mandriva.com> 1.1-1mdv2007.0
+- initial Mandriva package
+
