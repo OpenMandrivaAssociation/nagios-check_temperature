@@ -4,7 +4,7 @@
 Summary:	A Nagios wrapper script around digitemp
 Name:		nagios-check_temperature
 Version:	1.1
-Release:	%mkrel 7
+Release:	8
 License:	BSD-like
 Group:		Networking/Other
 URL:		http://www.hoppie.nl/tempsens/
