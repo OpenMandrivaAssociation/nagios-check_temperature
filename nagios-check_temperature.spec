@@ -7,7 +7,7 @@ Version:	1.1
 Release:	8
 License:	BSD-like
 Group:		Networking/Other
-URL:		http://www.hoppie.nl/tempsens/
+URL:		https://www.hoppie.nl/tempsens/
 Source0:	http://www.hoppie.nl/tempsens/check_temperature
 Requires:	digitemp
 Requires:	nagios-plugins
